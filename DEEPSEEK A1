@@ -1,0 +1,89 @@
+import PyPDF2  # Using PyPDF2 for PDF Processing instead of PyMuPDF
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.embeddings import HuggingFaceEmbeddings  # from main langchain package
+import faiss
+import numpy as np
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+import torch
+from py2neo import Graph
+
+def load_pdf_text(pdf_path):
+    """Extract text from a PDF using PyPDF2."""
+    text = ""
+    with open(pdf_path, "rb") as file:
+        reader = PyPDF2.PdfReader(file)
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+    return text
+
+pdf_path = "/content/gdsc rag.pdf"  # Change this to your PDF path
+pdf_text = load_pdf_text(pdf_path)
+
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+chunks = text_splitter.split_text(pdf_text)
+
+embedding_model = "sentence-transformers/all-mpnet-base-v2"
+embeddings = HuggingFaceEmbeddings(model_name=embedding_model)
+
+dimension = 768  # Sentence Transformer output size for the selected model
+index = faiss.IndexFlatL2(dimension)  # L2 (Euclidean) distance index
+
+batch_size = 100
+for i in range(0, len(chunks), batch_size):
+    batch = chunks[i : i + batch_size]
+    batch_embeddings = embeddings.embed_documents(batch)
+    index.add(np.array(batch_embeddings, dtype=np.float32))  # Add embeddings to FAISS index
+
+faiss.write_index(index, "faiss_index.idx")  # Save the FAISS index
+
+NEO4J_URI = "neo4j+s://f9bd67ae.databases.neo4j.io"
+NEO4J_USER = "neo4j"
+NEO4J_PASSWORD = "FA4Q7SA9Wa0L5CVFbCdLfCLhcxK00HXzO1NwksQD6uY"  # Replace with your actual password
+
+graph = Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+
+for idx, chunk in enumerate(chunks):
+    query = """
+    MERGE (a:Article {id: $id, text: $text})
+    """
+    graph.run(query, id=idx, text=chunk)  # Parameterized query (Faster & Safer)
+
+model_name = "deepseek-ai/deepseek-llm-7b-chat"
+
+# Load tokenizer
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# Load model with memory optimization; offload if needed.
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    torch_dtype=torch.float16,       # Use 16-bit precision to save memory
+    device_map="auto",               # Automatically use GPU if available
+    offload_folder="offload_weights" # Set folder for offloading weights if needed
+)
+
+print("DeepSeek model loaded successfully!")
+
+text_gen_pipeline = pipeline("text-generation", model=model, tokenizer=tokenizer)
+
+def query_rag(question):
+     Retrieve relevant articles from Neo4j.
+    retrieval_query = """
+    MATCH (a:Article)
+    WHERE a.number = "1" OR toLower(a.text) CONTAINS toLower($question)
+    RETURN a.text LIMIT 3
+    """
+    results = [record["a.text"] for record in graph.run(retrieval_query, question=question)]
+    context = " ".join(results)
+
+    if not context:
+        return "No relevant articles found in the database."
+
+    prompt = f"Context: {context}\nQuestion: {question}\nAnswer:"
+    response = text_gen_pipeline(prompt, max_length=300)
+    return response[0]["generated_text"]
+
+question = "my phone got stolen!"
+answer = query_rag(question)
+print("Answer:", answer)
