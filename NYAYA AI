@@ -1,0 +1,45 @@
+Nyaya AI - Multilingual Legal Assistant 
+
+Overview
+
+Imagine being denied your rights simply because you don’t understand the law. Millions in rural and underserved communities lack access to legal help. Complex language, expensive lawyers, and limited resources make justice a privilege rather than a right. But what if the law spoke your language? 
+
+Meet Nyaya AI, your multilingual legal assistant. Powered by AI, it understands your legal questions and provides clear, reliable, and easy-to-understand answers—in your language! Whether it’s land disputes, labor laws, or legal rights, Nyaya AI makes justice accessible to all.
+
+Workflow Architecture 
+
+Transcription Processing 
+- The user asks a legal question via voice input.  
+- Speech Recognition converts speech into text for further processing.  
+
+ Knowledge Graph Integration 
+- The Knowledge Graph organizes legal information into relational entities.  
+- It helps in structuring the query and improving retrieval accuracy.  
+
+ Retrieval-Augmented Generation (RAG) & LLM Processing  
+- RAG searches for relevant legal information from trusted sources and personalizes the response.  
+- The query is processed by LLaMA or DeepSeek, which generates an initial legal answer.  
+
+ Validation Layer  
+- The generated response is validated by DeepSeek AI or Ollama, ensuring legal accuracy.  
+- If required, the response is reprocessed by the LLaMA model** for enhanced clarity and correctness.  
+
+  Transcription Conversion  
+- The final validated response is converted back into speech output, making it accessible even to non-literate users.  
+
+
+Technology Stack
+
+Tech Stack: 
+
+Nyaya AI uses advanced Natural Language Processing (NLP) to simplify legal content, providing users with easy-to-understand responses tailored to their specific situations. It doesn’t just give generic answers; it personalizes responses based on the user’s legal needs.
+
+Key features : 
+
+Nyaya AI is not just another chatbot—it is a multilingual, voice-enabled, AI-powered legal assistant that understands, processes, and explains legal queries in a simple and clear manner. Let’s explore what makes it truly revolutionary.Unlike traditional legal resources that are text-heavy and restricted to major languages, Nyaya AI understands and responds in multiple regional languages and dialects. It is speech-enabled, meaning even users with low literacy levels can access it with ease. This ensures that justice is truly accessible to everyone, regardless of language barriers.
+
+
+
+
+  
+
