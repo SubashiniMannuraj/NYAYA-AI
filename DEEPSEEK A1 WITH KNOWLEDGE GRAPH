@@ -18,7 +18,7 @@ def load_pdf_text(pdf_path):
                 text += page_text + "\n"
     return text
 
-pdf_path = "/content/gdsc rag.pdf"
+pdf_path = "/content/ipc sec 420 final.pdf"
 pdf_text = load_pdf_text(pdf_path)
 
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
@@ -38,9 +38,9 @@ for i in range(0, len(chunks), batch_size):
 
 faiss.write_index(index, "faiss_index.idx")  # Save the FAISS index
 
-NEO4J_URI = "neo4j+s://f9bd67ae.databases.neo4j.io"
+NEO4J_URI = "neo4j+s://6ecdc5f2.databases.neo4j.io"
 NEO4J_USER = "neo4j"
-NEO4J_PASSWORD = "FA4Q7SA9Wa0L5CVFbCdLfCLhcxK00HXzO1NwksQD6uY"  # Replace with your actual password
+NEO4J_PASSWORD = "xXDQIQ3l3QzlFoQlUQpL4cAImYbQl_ALGoAx4wUZams"  # Replace with your actual password
 
 graph = Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
@@ -155,23 +155,54 @@ print("✅ DeepSeek model loaded successfully!")
 
 text_gen_pipeline = pipeline("text-generation", model=model, tokenizer=tokenizer)
 
-def query_rag(question):
-    retrieval_query = """
-    MATCH (a:Article)
-    WHERE a.number = "1" OR toLower(a.text) CONTAINS toLower($question)
-    RETURN a.text LIMIT 3
+
+import re
+
+def retrieve_from_neo4j(question):
+    """Retrieve relevant legal data from Neo4j and return distinct context."""
+    query = """
+    CALL db.index.fulltext.queryNodes('articlesIndex', $query) 
+    YIELD node, score
+    RETURN node.text AS context
+    ORDER BY score DESC
+    LIMIT 3
     """
-    results = [record["a.text"] for record in graph.run(retrieval_query, question=question)]
-    context = " ".join(results)
+    result = graph.run(query, query=question).data()
 
-    if not context:
-        return "No relevant articles found in the database."
+    if result:
+        context_text = " ".join([row["context"] for row in result])
 
-    prompt = f"Context: {context}\nQuestion: {question}\nAnswer:"
-    response = text_gen_pipeline(prompt, max_length=300)
+        # Extract only the relevant Q&A section
+        match = re.search(r"(Q1: What should I do if my wallet or phone is stolen\?.*?Justification:.*?)$", 
+                          context_text, re.DOTALL)
+
+        if match:
+            return match.group(1)  # Return only the relevant extracted portion
+
+        return "Relevant legal answer not found."
+
+    return "No relevant legal data found."
+
+
+def query_rag(question):
+    """Retrieve context from Neo4j and generate a structured answer."""
+    context = retrieve_from_neo4j(question)
+
+    prompt = f"""
+    You are a legal AI assistant providing structured and clear legal advice. 
+    Use the given context to answer the question concisely. Include official links where applicable.
+
+    Context: {context}
+
+    Question: {question}
+
+    Answer:
+    """
+
+    response = text_gen_pipeline(prompt, max_new_tokens=300)  # Increase token limit
     return response[0]["generated_text"]
 
-
-question = "my phone got stolen! what should I do?"
+# Example Query
+question = "My phone got stolen! What should I do?"
 answer = query_rag(question)
 print("Answer:", answer)
